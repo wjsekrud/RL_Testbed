@@ -173,20 +173,20 @@ class SACAgent:
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
     def train(self, total_steps):
-        state = self.env.reset()
+        state, _ = self.env.reset()
         total_reward = 0
         step = 0
 
         while step < total_steps:
             action = self.select_action(state)
-            next_state, reward, done, _ = self.env.step(action)
+            next_state, reward, done, truncated, _ = self.env.step(action)
             total_reward += reward
 
             self.replay_buffer.push(state, action, reward, next_state, done)
 
             state = next_state
-            if done:
-                state = self.env.reset()
+            if done or truncated:
+                state, _ = self.env.reset()
                 total_reward = 0
 
             self.update()

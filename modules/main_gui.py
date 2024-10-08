@@ -8,6 +8,22 @@ import os
 from trainer import train_agent_gui
 from tester import test_agent_gui
 
+discrete_envs = [
+    'CartPole-v1',
+    'MountainCar-v0',
+    'Acrobot-v1',
+    'LunarLander-v2',
+    # Add more discrete environments as needed
+]
+
+continuous_envs = [
+    'Pendulum-v1',
+    'MountainCarContinuous-v0',
+    'LunarLanderContinuous-v2',
+    'BipedalWalker-v3',
+    # Add more continuous environments as needed
+]
+
 class RLApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -36,37 +52,50 @@ class RLApp(ctk.CTk):
             }
         }
 
+        self.discrete_envs = discrete_envs
+        self.continuous_envs = continuous_envs
+
         self.create_widgets()
 
     def create_widgets(self):
         # Algorithm Selection
+        self.firstpad = ctk.CTkLabel(self, text="")
+        self.firstpad.pack(anchor='w', padx=50, pady=5)
+
         self.algorithm_label = ctk.CTkLabel(self, text="Select Algorithm:")
-        self.algorithm_label.pack(pady=10)
+        self.algorithm_label.pack(anchor='w', padx=50, pady=5)
 
         self.algorithm_var = tk.StringVar(value=self.config["algorithm"])
         self.algorithm_optionmenu = ctk.CTkOptionMenu(self, variable=self.algorithm_var,
                                                       values=["a3c", "sac", "dpg"],
-                                                      command=self.update_hyperparameters)
-        self.algorithm_optionmenu.pack(pady=10)
+                                                      command=self.update_algorithm)
+        self.algorithm_optionmenu.pack(anchor='w', padx=50, pady=5)
 
-        # Environment Name
-        self.env_label = ctk.CTkLabel(self, text="Environment Name:")
-        self.env_label.pack(pady=10)
+        # Environment Selection
+        self.env_label = ctk.CTkLabel(self, text="Select Environment:")
+        self.env_label.pack(anchor='w', padx=50, pady=5)
 
-        self.env_entry = ctk.CTkEntry(self)
-        self.env_entry.insert(0, self.config["env_name"])
-        self.env_entry.pack(pady=10)
+        self.env_var = tk.StringVar(value=self.config["env_name"])
+
+        self.env_optionmenu_discrete = ctk.CTkOptionMenu(self, variable=self.env_var,
+                                                         values=self.discrete_envs)
+        self.env_optionmenu_continuous = ctk.CTkOptionMenu(self, variable=self.env_var,
+                                                           values=self.continuous_envs)
+
+        # Place both environment option menus but only one will be visible at a time
+        self.env_optionmenu_discrete.pack(anchor='w', padx=50)
+        self.env_optionmenu_continuous.pack(anchor='w', padx=100)
 
         # Hyperparameters Frame
         self.hyperparams_frame = ctk.CTkFrame(self)
-        self.hyperparams_frame.pack(pady=10, fill="both", expand=True)
+        self.hyperparams_frame.pack(anchor='w', ipadx=20, padx=50, pady=50, fill="y", expand=True)
 
         self.hyperparams_widgets = {}
         self.create_hyperparameter_widgets()
 
         # Buttons
         self.button_frame = ctk.CTkFrame(self)
-        self.button_frame.pack(pady=10)
+        self.button_frame.pack(pady=40)
 
         self.train_button = ctk.CTkButton(self.button_frame, text="Train", command=self.start_training)
         self.train_button.pack(side="left", padx=10)
@@ -79,6 +108,9 @@ class RLApp(ctk.CTk):
 
         self.load_config_button = ctk.CTkButton(self.button_frame, text="Load Config", command=self.load_config)
         self.load_config_button.pack(side="left", padx=10)
+
+        # Initialize visibility of environment option menus
+        self.update_algorithm()
 
     def create_hyperparameter_widgets(self):
         # Clear previous widgets
@@ -97,8 +129,23 @@ class RLApp(ctk.CTk):
             entry.pack(pady=5)
             self.hyperparams_widgets[param] = entry
 
-    def update_hyperparameters(self, *args):
+    def update_algorithm(self, *args):
         self.create_hyperparameter_widgets()
+        algorithm = self.algorithm_var.get()
+        if algorithm == 'a3c':
+            # Enable discrete environments, disable continuous environments
+            self.env_optionmenu_discrete.pack(after=self.env_label, anchor='w', padx=50)
+            self.env_optionmenu_continuous.pack_forget()
+            # Set default environment
+            if self.env_var.get() not in self.discrete_envs:
+                self.env_var.set(self.discrete_envs[0])
+        else:
+            # Enable continuous environments, disable discrete environments
+            self.env_optionmenu_continuous.pack(after=self.env_label, anchor='w', padx=50)
+            self.env_optionmenu_discrete.pack_forget()
+            # Set default environment
+            if self.env_var.get() not in self.continuous_envs:
+                self.env_var.set(self.continuous_envs[0])
 
     def start_training(self):
         # Update configuration from GUI inputs
@@ -159,14 +206,13 @@ class RLApp(ctk.CTk):
             with open(load_path, 'r') as f:
                 self.config = json.load(f)
             self.algorithm_var.set(self.config["algorithm"])
-            self.env_entry.delete(0, tk.END)
-            self.env_entry.insert(0, self.config["env_name"])
-            self.create_hyperparameter_widgets()
+            self.env_var.set(self.config["env_name"])
+            self.update_algorithm()
             messagebox.showinfo("Config Loaded", f"Configuration loaded from {load_path}")
 
     def update_config_from_gui(self):
         self.config["algorithm"] = self.algorithm_var.get()
-        self.config["env_name"] = self.env_entry.get()
+        self.config["env_name"] = self.env_var.get()
         algorithm = self.config["algorithm"]
         hyperparams = {}
         for param, entry in self.hyperparams_widgets.items():

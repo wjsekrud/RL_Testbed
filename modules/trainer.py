@@ -1,8 +1,9 @@
-import gym
+import gymnasium as gym
 import torch
 import torch.multiprocessing as mp
 import torch.optim as optim
 import argparse
+import os 
 
 from agents.a3c_agent import A3CNetwork, A3CAgent
 from agents.sac_agent import SACAgent
@@ -31,7 +32,7 @@ def train_agent_gui(config):
         for p in processes:
             p.join()
 
-        torch.save(global_model.state_dict(), './agents/checkpoints/a3c_model.pth')
+        torch.save(global_model.state_dict(), os.getcwd() + '\\agents\checkpoints\\a3c_model.pth')
 
     elif algorithm == 'sac':
         total_steps = hyperparams.get("total_steps", 100000)
@@ -54,14 +55,14 @@ def train_sac_agent(env_name, total_steps, learning_rate):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     agent = SACAgent(env, device=device, policy_lr=learning_rate, q_lr=learning_rate)
     agent.train(total_steps=total_steps)
-    agent.save_model('./agents/checkpoints/sac_model.pth')
+    agent.save_model(os.getcwd() + '\\agents\checkpoints\\sac_model.pth')
 
 def train_dpg_agent(env_name, total_steps, actor_lr, critic_lr):
     env = gym.make(env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     agent = DPGAgent(env, device=device, actor_lr=actor_lr, critic_lr=critic_lr)
     agent.train(total_steps=total_steps)
-    agent.save_model('./agents/checkpoints/pg_model.pth')
+    agent.save_model(os.getcwd() + '\\agents\checkpoints\\dpg_model.pth')
 
 '''
 if __name__ == '__main__':

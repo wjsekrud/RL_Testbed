@@ -29,7 +29,7 @@ class A3CAgent:
 
     def train(self, max_steps):
         self.sync_with_global()
-        state = self.env.reset()
+        state, _ = self.env.reset()
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         total_reward = 0
         done = False
@@ -37,7 +37,7 @@ class A3CAgent:
             logits, value = self.local_model(state)
             action_prob = F.softmax(logits, dim=-1)
             action = torch.multinomial(action_prob, 1).item()
-            next_state, reward, done, _ = self.env.step(action)
+            next_state, reward, done, truncated, _ = self.env.step(action)
             total_reward += reward
 
             next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
@@ -59,6 +59,6 @@ class A3CAgent:
             self.optimizer.step()
 
             state = next_state
-            if done or total_reward >= max_steps:
+            if done or truncated or total_reward >= max_steps:
                 break
         return total_reward
