@@ -17,28 +17,26 @@ def test_agent_gui(config):
         env = gym.make(env_name, render_mode = 'rgb_array')
         device = 'cpu'
         global_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n).to(device)
-        global_model.load_state_dict(torch.load(os.getcwd() + '\\agents\checkpoints\\a3c_model.pth'))
+        global_model.load_state_dict(torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_a3c_model.pth'))
         global_model.eval()
         test_a3c_agent(global_model, env_name)
 
     elif algorithm == 'sac':
         env = gym.make(env_name)
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         policy_net = PolicyNetwork(env.observation_space.shape[0], env.action_space.shape[0],
-                                   action_space=env.action_space).to(device)
-        checkpoint = torch.load(os.getcwd() + '\\agents\checkpoints\\sac_model.pth')
-        checkpoint.eval()
+                                   action_space=env.action_space)
+        checkpoint = torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
         policy_net.load_state_dict(checkpoint['policy_net'])
+        policy_net.eval()
         test_sac_agent(policy_net, env_name)
 
     elif algorithm == 'dpg':
         env = gym.make(env_name)
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         actor_net = ActorNetwork(env.observation_space.shape[0], env.action_space.shape[0],
-                                 action_limit=env.action_space.high[0]).to(device)
-        checkpoint = torch.load(os.getcwd() + '\\agents\checkpoints\\dpg_model.pth')
-        checkpoint.eval()
+                                 action_limit=env.action_space.high[0])
+        checkpoint = torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_dpg_model.pth')
         actor_net.load_state_dict(checkpoint['actor'])
+        actor_net.eval()
         test_dpg_agent(actor_net, env_name)
 
 def test_a3c_agent(global_model, env_name):
@@ -54,6 +52,7 @@ def test_a3c_agent(global_model, env_name):
         next_state, reward, done, truncated, _ = env.step(action)
         total_reward += reward
         state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
+        done = done or truncated
         env.render()
     print(f"Total Reward: {total_reward}")
 
@@ -63,27 +62,30 @@ def test_sac_agent(policy_net, env_name):
     done = False
     total_reward = 0
     while not done:
-        action = policy_net.select_action(state, evaluate=True)
+        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        with torch.no_grad():
+            action = policy_net(state_tensor)
         next_state, reward, done, truncated, _ = env.step(action)
         total_reward += reward
         state = next_state
+        done = done or truncated
         env.render()
     print(f"Total Reward: {total_reward}")
 
 def test_dpg_agent(actor_net, env_name):
     env = gym.make(env_name)
     state, _ = env.reset()
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     done = False
     total_reward = 0
     action_limit = env.action_space.high[0]
     while not done:
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
+        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         with torch.no_grad():
             action = actor_net(state_tensor).cpu().numpy()[0]
         next_state, reward, done, truncated, _ = env.step(action)
         total_reward += reward
         state = next_state
+        done = done or truncated
         env.render()
     print(f"Total Reward: {total_reward}")
 

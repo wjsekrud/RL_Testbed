@@ -4,6 +4,8 @@ from tkinter import filedialog, messagebox
 import threading
 import json
 import os
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from trainer import train_agent_gui
 from tester import test_agent_gui
@@ -24,12 +26,23 @@ continuous_envs = [
     # Add more continuous environments as needed
 ]
 
+env_info = {
+    'CartPole-v1': {'description': 'Balance a pole on a moving cart.', 'goal_reward': 500},
+    'MountainCar-v0': {'description': 'Drive a car up a steep mountain.', 'goal_reward': -110},
+    'Acrobot-v1': {'description': 'Swing an acrobot to reach the top.', 'goal_reward': -100},
+    'LunarLander-v2': {'description': 'Safely land the lunar lander.', 'goal_reward': 200},
+    'Pendulum-v1': {'description': 'Keep a pendulum upright.', 'goal_reward': 0},  # Continuous envs start here
+    'MountainCarContinuous-v0': {'description': 'Drive up the mountain with continuous control.', 'goal_reward': 90},
+    'LunarLanderContinuous-v2': {'description': 'Safely land the lunar lander with continuous control.', 'goal_reward': 200},
+    'BipedalWalker-v3': {'description': 'Control a bipedal walker to finish the course.', 'goal_reward': 300},
+}
+
 class RLApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("Reinforcement Learning GUI")
-        self.geometry("800x600")
+        self.geometry("800x800")
 
         # Default configuration
         self.config = {
@@ -37,7 +50,7 @@ class RLApp(ctk.CTk):
             "env_name": "CartPole-v1",
             "hyperparameters": {
                 "a3c": {
-                    "max_steps": 1000,
+                    "total_steps": 100000,
                     "learning_rate": 1e-4
                 },
                 "sac": {
@@ -56,6 +69,7 @@ class RLApp(ctk.CTk):
         self.continuous_envs = continuous_envs
 
         self.create_widgets()
+        self.create_plot_space()
 
     def create_widgets(self):
         # Algorithm Selection
@@ -78,13 +92,25 @@ class RLApp(ctk.CTk):
         self.env_var = tk.StringVar(value=self.config["env_name"])
 
         self.env_optionmenu_discrete = ctk.CTkOptionMenu(self, variable=self.env_var,
-                                                         values=self.discrete_envs)
+                                                         values=self.discrete_envs,
+                                                         command=self.update_env_info)
         self.env_optionmenu_continuous = ctk.CTkOptionMenu(self, variable=self.env_var,
-                                                           values=self.continuous_envs)
+                                                           values=self.continuous_envs,
+                                                           command=self.update_env_info)
 
         # Place both environment option menus but only one will be visible at a time
         self.env_optionmenu_discrete.pack(anchor='w', padx=50)
         self.env_optionmenu_continuous.pack(anchor='w', padx=100)
+
+        # Environment Description and Goal Reward (right top)
+        self.env_info_frame = ctk.CTkFrame(self)
+        self.env_info_frame.place(relx=0.55, rely=0.05, anchor='n')  # Place it at the top right corner
+
+        self.env_description_label = ctk.CTkLabel(self.env_info_frame, text="Description: ", wraplength=500)
+        self.env_description_label.pack(ipadx= 50, pady=7)
+
+        self.env_goal_label = ctk.CTkLabel(self.env_info_frame, text="Goal Reward: ")
+        self.env_goal_label.pack(pady=7)
 
         # Hyperparameters Frame
         self.hyperparams_frame = ctk.CTkFrame(self)
@@ -111,6 +137,30 @@ class RLApp(ctk.CTk):
 
         # Initialize visibility of environment option menus
         self.update_algorithm()
+
+    def create_plot_space(self):
+        # Create a frame to hold the plot
+        self.plot_frame = ctk.CTkFrame(self, width=600, height=400)
+        self.plot_frame.place(relx = 0.65, rely=0.4, relwidth=0.6, relheight=0.4, anchor='center', bordermode="inside")
+
+        # Initialize the figure and canvas for the matplotlib plot
+        self.fig, self.ax = plt.subplots(figsize=(6, 4))
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)  # A tk.DrawingArea.
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+    def update_plot(self, rewards):
+        # Clear the previous plot
+        self.ax.clear()
+
+        # Plot the rewards
+        self.ax.plot(rewards, label="Evaluation Rewards")
+        self.ax.set_title("Evaluation Reward over Time")
+        self.ax.set_xlabel("Evaluation Step")
+        self.ax.set_ylabel("Reward")
+        self.ax.legend()
+
+        # Redraw the canvas with the new plot
+        self.canvas.draw()
 
     def create_hyperparameter_widgets(self):
         # Clear previous widgets
@@ -146,6 +196,16 @@ class RLApp(ctk.CTk):
             # Set default environment
             if self.env_var.get() not in self.continuous_envs:
                 self.env_var.set(self.continuous_envs[0])
+        self.update_env_info()
+
+    def update_env_info(self, *args):
+        env_name = self.env_var.get()
+        description = env_info.get(env_name, {}).get('description', 'No description available.')
+        goal_reward = env_info.get(env_name, {}).get('goal_reward', 'N/A')
+
+        self.env_description_label.configure(text=f"Description: {description}")
+        self.env_goal_label.configure(text=f"Goal Reward: {goal_reward}")
+
 
     def start_training(self):
         # Update configuration from GUI inputs

@@ -192,6 +192,9 @@ class SACAgent:
             self.update()
             step += 1
 
+            if step % 1000 == 0:
+                print(f"total step exceed {step} steps")
+
         print(f"Training completed for {total_steps} steps.")
 
     def save_model(self, path):

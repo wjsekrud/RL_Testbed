@@ -20,38 +20,41 @@ class A3CAgent:
     def __init__(self, env, global_model, optimizer, gamma=0.99):
         self.env = env
         self.global_model = global_model
-        self.local_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n)
+        self.local_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n).to('cuda')
         self.optimizer = optimizer
         self.gamma = gamma
 
     def sync_with_global(self):
         self.local_model.load_state_dict(self.global_model.state_dict())
 
-    def train(self, max_steps):
+    def train(self, total_steps):
         self.sync_with_global()
         state, _ = self.env.reset()
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to('cuda')
         total_reward = 0
         done = False
-        while not done:
+        steps = 0
+
+        while steps < total_steps:
             logits, value = self.local_model(state)
             action_prob = F.softmax(logits, dim=-1)
             action = torch.multinomial(action_prob, 1).item()
-            next_state, reward, done, truncated, _ = self.env.step(action)
+            next_state, reward, terminated, truncated, _ = self.env.step(action)
+            done = terminated or truncated
             total_reward += reward
 
-            next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
+            next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0).to('cuda')
             _, next_value = self.local_model(next_state)
 
-            # Compute advantage and loss
+            # Advantage와 Loss 계산
             advantage = reward + self.gamma * next_value * (1 - int(done)) - value
             value_loss = advantage.pow(2)
             policy_loss = -torch.log(action_prob[0, action]) * advantage.detach()
 
-            # Total loss
+            # 총 Loss
             loss = (value_loss + policy_loss).mean()
 
-            # Backpropagation
+            # 역전파
             self.optimizer.zero_grad()
             loss.backward()
             for local_param, global_param in zip(self.local_model.parameters(), self.global_model.parameters()):
@@ -59,6 +62,14 @@ class A3CAgent:
             self.optimizer.step()
 
             state = next_state
-            if done or truncated or total_reward >= max_steps:
-                break
-        return total_reward
+            steps += 1
+
+            if steps % 1000 == 0:
+                print(f"Cycle exceed {steps}steps.")
+
+            if done:
+                state, _ = self.env.reset()
+                state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to('cuda')
+                total_reward = 0
+                done = False
+                self.sync_with_global()
