@@ -9,7 +9,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from trainer import train_agent_gui
 from tester import test_agent_gui
-
+from visualizer import record_agent
 discrete_envs = [
     'CartPole-v1',
     'MountainCar-v0',
@@ -47,7 +47,7 @@ class RLApp(ctk.CTk):
 
         # Default configuration
         self.config = {
-            "algorithm": "a3c",
+            "algorithm": "A3C",
             "env_name": "CartPole-v1",
             "hyperparameters": {
                 "a3c": {
@@ -88,7 +88,7 @@ class RLApp(ctk.CTk):
 
         self.algorithm_var = tk.StringVar(value=self.config["algorithm"])
         self.algorithm_optionmenu = ctk.CTkOptionMenu(self, variable=self.algorithm_var,
-                                                      values=["a3c", "sac", "dpg"],
+                                                      values=["A3C", "SAC", "DPG"],
                                                       command=self.update_algorithm)
         self.algorithm_optionmenu.pack(anchor='w', padx=50, pady=5)
 
@@ -181,7 +181,7 @@ class RLApp(ctk.CTk):
             widget.destroy()
 
         algorithm = self.algorithm_var.get()
-        hyperparams = self.config["hyperparameters"][algorithm]
+        hyperparams = self.config["hyperparameters"][algorithm.lower()]
 
         self.hyperparams_widgets = {}
         for param, value in hyperparams.items():
@@ -261,17 +261,31 @@ class RLApp(ctk.CTk):
             self.test_button.configure(state="normal")
 
     def test_agent(self, FromAgent):
+        if FromAgent == False:
+            self.record_agent_gui()
+        else:
+            try:
+                reward = test_agent_gui(self.config)
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+            return reward
+
+    def record_agent_gui(self):
         try:
-            reward = test_agent_gui(self.config)
+            algorithm = self.config["algorithm"]
+            env_name = self.config["env_name"]
+            video_dir = f'videos\{env_name}'
+            video_length = 1500  # Optionally, get this value from user input
+
+            os.makedirs(video_dir, exist_ok=True)
+            record_agent(algorithm, env_name, video_dir, video_length)
+            messagebox.showinfo("Recording Completed", f"Video saved to {video_dir}")
         except Exception as e:
             messagebox.showerror("Error", str(e))
         finally:
-            if FromAgent == False:
-                # Re-enable buttons after testing
-                self.train_button.configure(state="normal")
-                self.test_button.configure(state="normal")
-        if FromAgent:
-            return reward
+            # Re-enable buttons after recording
+            self.train_button.configure(state="normal")
+            self.test_button.configure(state="normal")
 
     def save_config(self):
         self.update_config_from_gui()
@@ -292,7 +306,7 @@ class RLApp(ctk.CTk):
             messagebox.showinfo("Config Loaded", f"Configuration loaded from {load_path}")
 
     def update_config_from_gui(self):
-        self.config["algorithm"] = self.algorithm_var.get()
+        self.config["algorithm"] = self.algorithm_var.get().lower()
         self.config["env_name"] = self.env_var.get()
         algorithm = self.config["algorithm"]
         hyperparams = {}

@@ -19,14 +19,14 @@ def train_agent_gui(config, app):
         learning_rate = hyperparams.get("learning_rate", 1e-4)
         env = gym.make(env_name)
         #device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        global_model = A3CNetwork(app, env.observation_space.shape[0], env.action_space)
+        global_model = A3CNetwork(env.observation_space.shape[0], env.action_space)
         global_model.share_memory()
         optimizer = optim.Adam(global_model.parameters(), lr=learning_rate)
 
         processes = []
         num_processes = mp.cpu_count()
         for rank in range(num_processes):
-            p = mp.Process(target=train_a3c_agent, args=(global_model, optimizer, env_name, total_steps))
+            p = mp.Process(target=train_a3c_agent, args=(app, global_model, optimizer, env_name, total_steps))
             p.start()
             processes.append(p)
         for p in processes:
@@ -46,7 +46,7 @@ def train_agent_gui(config, app):
         critic_lr = hyperparams.get("critic_lr", 1e-3)
         train_dpg_agent(app, env_name, total_steps, actor_lr, critic_lr)
 
-def train_a3c_agent(global_model, optimizer, env_name, max_steps, app):
+def train_a3c_agent(app, global_model, optimizer, env_name, max_steps):
     env = gym.make(env_name)
     agent = A3CAgent(app, env, global_model, optimizer)
     agent.train(total_steps=max_steps)

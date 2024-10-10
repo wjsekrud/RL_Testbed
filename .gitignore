@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.pth
+*.json
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -142,17 +144,16 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
 # Pyre type checker
 .pyre/
 
 # pytype static type analyzer
 .pytype/
 
+*.mp4
+
 # Cython debug symbols
 cython_debug/
-
-.pth
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

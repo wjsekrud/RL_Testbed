@@ -154,7 +154,7 @@ class DPGAgent:
 
             self.update()
 
-            if step % 500 == 0:
+            if step % 1000 == 0:
                 self.inspection(step)
             step += 1
 

@@ -28,7 +28,7 @@ def test_agent_gui(config):
         checkpoint = torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
         policy_net.load_state_dict(checkpoint['policy_net'])
         policy_net.eval()
-        test_sac_agent(policy_net, env_name)
+        return test_sac_agent(policy_net, env_name)
 
     elif algorithm == 'dpg':
         env = gym.make(env_name)
@@ -58,37 +58,49 @@ def test_a3c_agent(global_model, env_name):
 
 def test_sac_agent(policy_net, env_name):
     env = gym.make(env_name)
-    state, _ = env.reset()
-    done = False
-    total_reward = 0
-    while not done:
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        with torch.no_grad():
-            action = policy_net(state_tensor)
-        next_state, reward, done, truncated, _ = env.step(action)
-        total_reward += reward
-        state = next_state
-        done = done or truncated
-        env.render()
-    print(f"Total Reward: {total_reward}")
+    avg = 0
+    for n in range(3):
+        state, _ = env.reset()
+        done = False
+        total_reward = 0
+
+        while not done:
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+            with torch.no_grad():
+                mean, _ = policy_net(state_tensor)
+                action = torch.tanh(mean) * env.action_space.high[0]
+                action = action.cpu().numpy()[0]
+            next_state, reward, done, truncated, _ = env.step(action)
+            total_reward += reward
+            state = next_state
+            done = done or truncated
+            env.render()
+        avg += total_reward
+        print(f"Total Reward: {total_reward}")
+    return avg / 3
 
 def test_dpg_agent(actor_net, env_name):
     env = gym.make(env_name)
-    state, _ = env.reset()
-    done = False
-    total_reward = 0
-    action_limit = env.action_space.high[0]
-    while not done:
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        with torch.no_grad():
-            action = actor_net(state_tensor).cpu().numpy()[0]
-        next_state, reward, done, truncated, _ = env.step(action)
-        total_reward += reward
-        state = next_state
-        done = done or truncated
-        env.render()
-    print(f"Total Reward: {total_reward}")
-    return total_reward
+    avg = 0
+    for n in range(3):
+        state, _ = env.reset()
+        done = False
+        total_reward = 0
+        
+        action_limit = env.action_space.high[0]
+        while not done:
+            state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+            with torch.no_grad():
+                action = actor_net(state_tensor).cpu().numpy()[0]
+            next_state, reward, done, truncated, _ = env.step(action)
+            total_reward += reward
+            state = next_state
+            done = done or truncated
+            env.render()
+            
+        avg += total_reward
+        print(f"Total Reward: {total_reward}")
+    return avg / 3
 
 '''
 if __name__ == '__main__':

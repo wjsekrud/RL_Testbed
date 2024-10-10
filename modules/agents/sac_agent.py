@@ -176,7 +176,7 @@ class SACAgent:
     def train(self, total_steps):
         state, _ = self.env.reset()
         total_reward = 0
-        step = 0
+        step = 1
 
         while step < total_steps:
             action = self.select_action(state)
@@ -194,9 +194,15 @@ class SACAgent:
             step += 1
 
             if step % 1000 == 0:
-                print(f"total step exceed {step} steps")
+                self.inspection(step)
 
         print(f"Training completed for {total_steps} steps.")
+
+    def inspection(self, iteration):
+        print(f"tryinstpection...{self.env.unwrapped.spec.id}")
+        self.save_model(self.app.PATH + f'\\agents\\checkpoints\\{self.env.unwrapped.spec.id}_sac_model.pth')
+        reward = self.app.test_agent(True)
+        self.app.update_plot(iteration, reward)
 
     def save_model(self, path):
         torch.save({

@@ -21,7 +21,7 @@ class A3CAgent:
         self.app = app
         self.env = env
         self.global_model = global_model
-        self.local_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n).to('cuda')
+        self.local_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n)
         self.optimizer = optimizer
         self.gamma = gamma
 
@@ -31,7 +31,7 @@ class A3CAgent:
     def train(self, total_steps):
         self.sync_with_global()
         state, _ = self.env.reset()
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to('cuda')
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         total_reward = 0
         done = False
         steps = 0
@@ -44,7 +44,7 @@ class A3CAgent:
             done = terminated or truncated
             total_reward += reward
 
-            next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0).to('cuda')
+            next_state = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
             _, next_value = self.local_model(next_state)
 
             # Advantage와 Loss 계산
@@ -70,7 +70,7 @@ class A3CAgent:
 
             if done:
                 state, _ = self.env.reset()
-                state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to('cuda')
+                state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                 total_reward = 0
                 done = False
                 self.sync_with_global()
