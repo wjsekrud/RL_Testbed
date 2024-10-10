@@ -17,7 +17,8 @@ class A3CNetwork(nn.Module):
         return policy_logits, value
 
 class A3CAgent:
-    def __init__(self, env, global_model, optimizer, gamma=0.99):
+    def __init__(self, app, env, global_model, optimizer, gamma=0.99):
+        self.app = app
         self.env = env
         self.global_model = global_model
         self.local_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n).to('cuda')

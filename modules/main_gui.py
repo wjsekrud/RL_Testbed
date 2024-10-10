@@ -31,6 +31,7 @@ env_info = {
     'MountainCar-v0': {'description': 'Drive a car up a steep mountain.', 'goal_reward': -110},
     'Acrobot-v1': {'description': 'Swing an acrobot to reach the top.', 'goal_reward': -100},
     'LunarLander-v2': {'description': 'Safely land the lunar lander.', 'goal_reward': 200},
+
     'Pendulum-v1': {'description': 'Keep a pendulum upright.', 'goal_reward': 0},  # Continuous envs start here
     'MountainCarContinuous-v0': {'description': 'Drive up the mountain with continuous control.', 'goal_reward': 90},
     'LunarLanderContinuous-v2': {'description': 'Safely land the lunar lander with continuous control.', 'goal_reward': 200},
@@ -70,6 +71,12 @@ class RLApp(ctk.CTk):
 
         self.create_widgets()
         self.create_plot_space()
+
+        self.iterations = []
+        self.rewards = []
+
+        self.PATH = os.getcwd()
+
 
     def create_widgets(self):
         # Algorithm Selection
@@ -148,12 +155,18 @@ class RLApp(ctk.CTk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)  # A tk.DrawingArea.
         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-    def update_plot(self, rewards):
+    def update_plot(self, iteration, reward, reset=False):
         # Clear the previous plot
         self.ax.clear()
-
+        if reset:
+            self.iterations.clear()
+            self.rewards.clear()
+        else:
+            self.iterations.append(iteration)
+            self.rewards.append(reward)
+        #print(f"updating plot. iterations={self.iterations}, reward={self.rewards}")
         # Plot the rewards
-        self.ax.plot(rewards, label="Evaluation Rewards")
+        self.ax.plot(self.iterations, self.rewards, label="Evaluation Rewards")
         self.ax.set_title("Evaluation Reward over Time")
         self.ax.set_xlabel("Evaluation Step")
         self.ax.set_ylabel("Reward")
@@ -197,6 +210,10 @@ class RLApp(ctk.CTk):
             if self.env_var.get() not in self.continuous_envs:
                 self.env_var.set(self.continuous_envs[0])
         self.update_env_info()
+        try:
+            self.update_plot(0,0,reset=True)
+        except:
+            pass
 
     def update_env_info(self, *args):
         env_name = self.env_var.get()
@@ -208,6 +225,7 @@ class RLApp(ctk.CTk):
 
 
     def start_training(self):
+        self.update_plot(0,0,True)
         # Update configuration from GUI inputs
         self.update_config_from_gui()
 
@@ -228,12 +246,12 @@ class RLApp(ctk.CTk):
         self.test_button.configure(state="disabled")
 
         # Start testing in a separate thread
-        testing_thread = threading.Thread(target=self.test_agent)
+        testing_thread = threading.Thread(target=self.test_agent(False))
         testing_thread.start()
 
     def train_agent(self):
         try:
-            train_agent_gui(self.config)
+            train_agent_gui(self.config, app)
             messagebox.showinfo("Training Completed", "Training has been completed successfully.")
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -242,15 +260,18 @@ class RLApp(ctk.CTk):
             self.train_button.configure(state="normal")
             self.test_button.configure(state="normal")
 
-    def test_agent(self):
+    def test_agent(self, FromAgent):
         try:
-            test_agent_gui(self.config)
+            reward = test_agent_gui(self.config)
         except Exception as e:
             messagebox.showerror("Error", str(e))
         finally:
-            # Re-enable buttons after testing
-            self.train_button.configure(state="normal")
-            self.test_button.configure(state="normal")
+            if FromAgent == False:
+                # Re-enable buttons after testing
+                self.train_button.configure(state="normal")
+                self.test_button.configure(state="normal")
+        if FromAgent:
+            return reward
 
     def save_config(self):
         self.update_config_from_gui()

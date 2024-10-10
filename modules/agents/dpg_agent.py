@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+import os 
 
 class ActorNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, action_limit, hidden_dim=256):
@@ -61,8 +62,9 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class DPGAgent:
-    def __init__(self, env, device='cpu', gamma=0.99, tau=0.005,
+    def __init__(self, app, env, device='cpu', gamma=0.99, tau=0.005,
                  actor_lr=1e-4, critic_lr=1e-3, buffer_capacity=1000000, batch_size=256):
+        self.app = app
         self.env = env
         self.device = device
         self.gamma = gamma
@@ -136,7 +138,7 @@ class DPGAgent:
     def train(self, total_steps):
         state, _ = self.env.reset()
         total_reward = 0
-        step = 0
+        step = 1
 
         while step < total_steps:
             action = self.select_action(state)
@@ -151,9 +153,18 @@ class DPGAgent:
                 total_reward = 0
 
             self.update()
+
+            if step % 500 == 0:
+                self.inspection(step)
             step += 1
 
         print(f"Training completed for {total_steps} steps.")
+
+    def inspection(self, iteration):
+        print(f"tryinstpection...{self.env.unwrapped.spec.id}")
+        self.save_model(self.app.PATH + f'\\agents\\checkpoints\\{self.env.unwrapped.spec.id}_dpg_model.pth')
+        reward = self.app.test_agent(True)
+        self.app.update_plot(iteration, reward)
 
     def save_model(self, path):
         torch.save({

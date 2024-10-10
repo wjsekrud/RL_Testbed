@@ -82,8 +82,9 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class SACAgent:
-    def __init__(self, env, device='cpu', gamma=0.99, tau=0.005, alpha=0.2,
+    def __init__(self, app, env, device='cpu', gamma=0.99, tau=0.005, alpha=0.2,
                  policy_lr=3e-4, q_lr=3e-4, buffer_capacity=1000000, batch_size=256):
+        self.app = app
         self.env = env
         self.device = device
         self.gamma = gamma

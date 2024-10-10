@@ -37,7 +37,7 @@ def test_agent_gui(config):
         checkpoint = torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_dpg_model.pth')
         actor_net.load_state_dict(checkpoint['actor'])
         actor_net.eval()
-        test_dpg_agent(actor_net, env_name)
+        return test_dpg_agent(actor_net, env_name)
 
 def test_a3c_agent(global_model, env_name):
     env = gym.make(env_name)
@@ -88,6 +88,7 @@ def test_dpg_agent(actor_net, env_name):
         done = done or truncated
         env.render()
     print(f"Total Reward: {total_reward}")
+    return total_reward
 
 '''
 if __name__ == '__main__':

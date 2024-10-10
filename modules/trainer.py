@@ -9,7 +9,7 @@ from agents.a3c_agent import A3CNetwork, A3CAgent
 from agents.sac_agent import SACAgent
 from agents.dpg_agent import DPGAgent
 
-def train_agent_gui(config):
+def train_agent_gui(config, app):
     algorithm = config["algorithm"]
     env_name = config["env_name"]
     hyperparams = config["hyperparameters"][algorithm]
@@ -19,7 +19,7 @@ def train_agent_gui(config):
         learning_rate = hyperparams.get("learning_rate", 1e-4)
         env = gym.make(env_name)
         #device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        global_model = A3CNetwork(env.observation_space.shape[0], env.action_space.n)
+        global_model = A3CNetwork(app, env.observation_space.shape[0], env.action_space)
         global_model.share_memory()
         optimizer = optim.Adam(global_model.parameters(), lr=learning_rate)
 
@@ -38,30 +38,30 @@ def train_agent_gui(config):
     elif algorithm == 'sac':
         total_steps = hyperparams.get("total_steps", 100000)
         learning_rate = hyperparams.get("learning_rate", 3e-4)
-        train_sac_agent(env_name, total_steps, learning_rate)
+        train_sac_agent(app, env_name, total_steps, learning_rate)
 
     elif algorithm == 'dpg':
         total_steps = hyperparams.get("total_steps", 100000)
         actor_lr = hyperparams.get("actor_lr", 1e-4)
         critic_lr = hyperparams.get("critic_lr", 1e-3)
-        train_dpg_agent(env_name, total_steps, actor_lr, critic_lr)
+        train_dpg_agent(app, env_name, total_steps, actor_lr, critic_lr)
 
-def train_a3c_agent(global_model, optimizer, env_name, max_steps):
+def train_a3c_agent(global_model, optimizer, env_name, max_steps, app):
     env = gym.make(env_name)
-    agent = A3CAgent(env, global_model, optimizer)
+    agent = A3CAgent(app, env, global_model, optimizer)
     agent.train(total_steps=max_steps)
 
-def train_sac_agent(env_name, total_steps, learning_rate):
+def train_sac_agent(app, env_name, total_steps, learning_rate):
     env = gym.make(env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    agent = SACAgent(env, device=device, policy_lr=learning_rate, q_lr=learning_rate)
+    agent = SACAgent(app, env, device=device, policy_lr=learning_rate, q_lr=learning_rate)
     agent.train(total_steps=total_steps)
     agent.save_model(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
 
-def train_dpg_agent(env_name, total_steps, actor_lr, critic_lr):
+def train_dpg_agent(app, env_name, total_steps, actor_lr, critic_lr):
     env = gym.make(env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    agent = DPGAgent(env, device=device, actor_lr=actor_lr, critic_lr=critic_lr)
+    agent = DPGAgent(app, env, device=device, actor_lr=actor_lr, critic_lr=critic_lr)
     agent.train(total_steps=total_steps)
     agent.save_model(os.getcwd() + f'\\agents\checkpoints\\{env_name}_dpg_model.pth')
 
