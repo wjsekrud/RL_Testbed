@@ -55,7 +55,7 @@ def train_sac_agent(app, env_name, total_steps, learning_rate):
     env = gym.make(env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     agent = SACAgent(app, env, device=device, policy_lr=learning_rate, q_lr=learning_rate)
-    agent.train(total_steps=total_steps)
+    agent.train(max_steps=total_steps)
     agent.save_model(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
 
 def train_dpg_agent(app, env_name, total_steps, actor_lr, critic_lr):

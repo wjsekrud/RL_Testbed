@@ -15,6 +15,7 @@ discrete_envs = [
     'MountainCar-v0',
     'Acrobot-v1',
     'LunarLander-v2',
+    'CarRacing-v2'
     # Add more discrete environments as needed
 ]
 
@@ -23,6 +24,7 @@ continuous_envs = [
     'MountainCarContinuous-v0',
     'LunarLanderContinuous-v2',
     'BipedalWalker-v3',
+    'CarRacing-v2'
     # Add more continuous environments as needed
 ]
 
@@ -36,6 +38,7 @@ env_info = {
     'MountainCarContinuous-v0': {'description': 'Drive up the mountain with continuous control.', 'goal_reward': 90},
     'LunarLanderContinuous-v2': {'description': 'Safely land the lunar lander with continuous control.', 'goal_reward': 200},
     'BipedalWalker-v3': {'description': 'Control a bipedal walker to finish the course.', 'goal_reward': 300},
+    'CarRacing-v2' : {'description': 'The easiest control task to learn from pixels - a top-down racing environment. The generated track is random every episode.', 'goal_reward': 500}
 }
 
 class RLApp(ctk.CTk):

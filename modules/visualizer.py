@@ -38,16 +38,15 @@ def record_sac_agent(policy_net, env_name, video_dir, video_length=500):
     total_reward = 0
     steps = 0
 
-    while not done and steps < video_length:
+    while not done:
         state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device)
         with torch.no_grad():
-            action, _ = policy_net.sample(state_tensor)
-        action = action.cpu().numpy()[0]
+            action, mu, _ = policy_net(state_tensor)
+        action = mu.detach().cpu().numpy()[0]
         next_state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
         total_reward += reward
         state = next_state
-        steps += 1
     env.close()
     print(f"Total Reward: {total_reward}")
     print(f"Video saved to {video_dir}")
@@ -87,7 +86,7 @@ def record_agent(algorithm, env_name, video_dir, video_length):
         policy_net = PolicyNetwork(env.observation_space.shape[0], env.action_space.shape[0],
                                    action_space=env.action_space).to(device)
         checkpoint = torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
-        policy_net.load_state_dict(checkpoint['policy_net'])
+        policy_net.load_state_dict(checkpoint['actor'])
         record_sac_agent(policy_net, env_name, video_dir, video_length)
 
     elif algorithm == 'dpg':

@@ -3,25 +3,96 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+from torch.distributions import Normal
 
 class SoftQNetwork(nn.Module):
-    def __init__(self, input_dim, action_dim, hidden_dim=256):
+    def __init__(self, input_dim, action_dim, is2d, hidden_dim=256):
         super(SoftQNetwork, self).__init__()
-        self.fc1 = nn.Linear(input_dim + action_dim, hidden_dim)
+        print(f"Q, input dim= {input_dim}, action dim = {action_dim}" )
+
+        # for 2d environments 16 - 1 
+        self.conv1=nn.Conv2d(input_dim,16,kernel_size=3,stride=3) # [N, 1, 96, 96] -> [N, 16, 32, 32]
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=1, stride=1)  # [N, 16, 32, 32] -> [N, 32, 16, 16]
+        self.in_features=16*8*8
+    
+        if is2d:
+            print("2d environment")
+            self.fc1 = nn.Linear(self.in_features, hidden_dim)
+        else:
+            self.fc1 = nn.Linear(input_dim + action_dim, hidden_dim)
+
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.q_value = nn.Linear(hidden_dim, 1)
 
     def forward(self, state, action):
-        x = torch.cat([state, action], 1)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        q_value = self.q_value(x)
+        print("QForward")
+
+        try:
+            x = torch.cat((state, action), dim=-1)
+            x = F.relu(self.fc1(x))
+            x = F.relu(self.fc2(x))
+            q_value = self.q_value(x)
+        except:
+            x = F.relu(self.conv1(state))
+            x = F.relu(self.conv2(x))
+            x = x.view((-1, self.in_features))
+            x = self.fc1(x)
+            x = self.fc2(x)
+            q_value = self.q_value(x)
+
         return q_value
 
-class PolicyNetwork(nn.Module):
-    def __init__(self, input_dim, action_dim, hidden_dim=256, action_space=None):
-        super(PolicyNetwork, self).__init__()
+class SoftVNetwork(nn.Module):
+    def __init__(self, input_dim : int, is2d, hidden_dim=256):
+        super(SoftVNetwork, self).__init__()
+
+        print("V, input dim= ", input_dim)
+
+        # for 2d environments 16 - 1 
+        self.conv1= nn.Conv2d(input_dim,16,kernel_size=3,stride=3) # [N, 1, 96, 96] -> [N, 16, 32, 32]
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=1, stride=1)  # [N, 16, 32, 32] -> [N, 32, 16, 16]
+        self.in_features=16*8*8
+    
+        if is2d:
+            print("2d environment")
+            self.fc1 = nn.Linear(self.in_features, hidden_dim)
+        else:
+            self.fc1 = nn.Linear(input_dim, hidden_dim)
+
         self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.out = nn.Linear(hidden_dim, 1)
+
+    def forward(self, state):
+        print("VForward")
+        try:
+            x = F.relu(self.fc1(state))
+            x = F.relu(self.fc2(x))
+            value = self.out(x)
+        except:
+            x = F.relu(self.conv1(state))
+            x = F.relu(self.conv2(x))
+            x = x.view((-1, self.in_features))
+            x = self.fc1(state)
+            x = self.fc2(x)
+            value = self.out(x)
+
+        return value
+
+class PolicyNetwork(nn.Module):
+    def __init__(self, input_dim, action_dim, hidden_dim=256, action_space=None, is2d=False):
+        super(PolicyNetwork, self).__init__() 
+
+        # for 2d environments 16 - 1 
+        self.conv1=nn.Conv2d(input_dim,16,kernel_size=3,stride=3) # [N, 1, 96, 96] -> [N, 16, 32, 32]
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=1, stride=1)  # [N, 16, 32, 32] -> [N, 32, 16, 16]
+        self.in_features=16*8*8
+    
+        if is2d:
+            print("2d environment")
+            self.fc1 = nn.Linear(self.in_features, hidden_dim)
+        else:
+            self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
 
         self.mean = nn.Linear(hidden_dim, action_dim)
@@ -29,29 +100,35 @@ class PolicyNetwork(nn.Module):
 
         self.action_space = action_space
 
-    def forward(self, state):
-        x = F.relu(self.fc1(state))
-        x = F.relu(self.fc2(x))
+        self.log_std_min = -20
+        self.log_std_max = 2
 
-        mean = self.mean(x)
-        log_std = self.log_std(x)
-        log_std = torch.clamp(log_std, -20, 2)
+    def forward(self, state):
+        print("A forward.")
+        try:
+            x = F.relu(self.fc1(state))
+            x = F.relu(self.fc2(x))
+        except:
+            x = F.relu(self.conv1(state))
+            x = F.relu(self.conv2(x))
+            x = x.view((-1, self.in_features))
+            x = self.fc1(x)
+            x = self.fc2(x)
+
+        mu = self.mean(x).tanh()
+
+        log_std = self.log_std(x).tanh()
+        log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)
 
         std = torch.exp(log_std)
-        return mean, std
 
-    def sample(self, state):
-        mean, std = self.forward(state)
-        normal = torch.distributions.Normal(mean, std)
-        x_t = normal.rsample()  # Reparameterization trick
-        y_t = torch.tanh(x_t)
-        action = y_t * self.action_space.high[0]
+        dist = Normal(mu,std)
+        z = dist.rsample()
 
-        log_prob = normal.log_prob(x_t)
-        log_prob -= torch.log(1 - y_t.pow(2) + 1e-6)
-        log_prob = log_prob.sum(1, keepdim=True)
-
-        return action, log_prob
+        action = z.tanh()
+        log_prob = dist.log_prob(z) - torch.log(1 - action.pow(2) + 1e-7)
+        log_prob = log_prob.sum(-1, keepdim=True)
+        return action, mu, log_prob
 
 class ReplayBuffer:
     def __init__(self, capacity, device='cpu'):
@@ -82,121 +159,160 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class SACAgent:
-    def __init__(self, app, env, device='cpu', gamma=0.99, tau=0.005, alpha=0.2,
+    def __init__(self, app, env, device='cpu', gamma=0.99, tau=0.005,
                  policy_lr=3e-4, q_lr=3e-4, buffer_capacity=1000000, batch_size=256):
         self.app = app
         self.env = env
+        self.is2d = (self.env.unwrapped.spec.id == 'CarRacing-v2')  
         self.device = device
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
-
-        self.batch_size = batch_size
 
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]
         action_space = env.action_space
 
-        # Networks
-        self.policy_net = PolicyNetwork(obs_dim, action_dim, action_space=action_space).to(self.device)
-        self.q_net1 = SoftQNetwork(obs_dim, action_dim).to(self.device)
-        self.q_net2 = SoftQNetwork(obs_dim, action_dim).to(self.device)
-        self.target_q_net1 = SoftQNetwork(obs_dim, action_dim).to(self.device)
-        self.target_q_net2 = SoftQNetwork(obs_dim, action_dim).to(self.device)
+        self.target_entropy = -np.prod((action_dim,)).item()
+        self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
+        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=q_lr)
 
-        self.target_q_net1.load_state_dict(self.q_net1.state_dict())
-        self.target_q_net2.load_state_dict(self.q_net2.state_dict())
+        self.batch_size = batch_size
+        self.policy_update_freq = 2
+        
+
+        # Networks
+        self.actor = PolicyNetwork(obs_dim, action_dim, action_space=action_space, is2d=self.is2d).to(self.device) #Actor
+
+        self.q_net1 = SoftQNetwork(obs_dim, action_dim, is2d=self.is2d).to(self.device) #Q function
+        self.q_net2 = SoftQNetwork(obs_dim, action_dim, is2d=self.is2d).to(self.device)
+
+        self.vf = SoftVNetwork(obs_dim, is2d=self.is2d).to(self.device) #V function
+        self.vf_target = SoftVNetwork(obs_dim, is2d=self.is2d).to(self.device)
+        #self.vf_target.load_state_dict(self.vf.state_dict())
 
         # Optimizers
-        self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=policy_lr)
+        self.vf_optimizer = optim.Adam(self.vf.parameters(), lr=q_lr)
         self.q1_optimizer = optim.Adam(self.q_net1.parameters(), lr=q_lr)
         self.q2_optimizer = optim.Adam(self.q_net2.parameters(), lr=q_lr)
 
         # Replay Buffer
         self.replay_buffer = ReplayBuffer(buffer_capacity, device=self.device)
 
+        self.total_steps = 0
+
     def select_action(self, state, evaluate=False):
-        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         if evaluate:
             with torch.no_grad():
-                mean, _ = self.policy_net.forward(state)
-                action = torch.tanh(mean) * self.env.action_space.high[0]
-                action = action.cpu().numpy()[0]
+                x = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+                action, mu, log_prob = self.actor.forward(x)
+                return mu.detach().cpu().numpy()[0]
+
         else:
-            action, _ = self.policy_net.sample(state)
-            action = action.cpu().detach().numpy()[0]
+            x = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+            action, mu, log_prob = self.actor(x)
+            action = action.detach().cpu().numpy()[0]
+            #mu.mu.detach().cpu().numpy()[0]
+            #log_prob = log_prob.detach().cpu().numpy()[0]
+
+            return action
+
+            #action, _ = self.policy_net.sample(state)
+            #action = action.cpu().detach().numpy()[0]
+
         return action
 
     def update(self):
+        print("update")
         if len(self.replay_buffer) < self.batch_size:
             return
+        
+        
+        state, action, reward, next_state, done =  map(lambda x: x.to(self.device), self.replay_buffer.sample(self.batch_size))
+        new_action, mu, log_prob = self.actor(state)
 
-        state, action, reward, next_state, done = self.replay_buffer.sample(self.batch_size)
+        alpha_loss = (-self.log_alpha.exp() * (log_prob + self.target_entropy).detach()).mean()
 
-        with torch.no_grad():
-            next_action, next_log_prob = self.policy_net.sample(next_state)
-            target_q1 = self.target_q_net1(next_state, next_action)
-            target_q2 = self.target_q_net2(next_state, next_action)
-            target_q = torch.min(target_q1, target_q2) - self.alpha * next_log_prob
-            target_value = reward + (1 - done) * self.gamma * target_q
+        self.alpha_optimizer.zero_grad()
+        alpha_loss.backward()
+        self.alpha_optimizer.step()
 
-        # Update Q-functions
-        current_q1 = self.q_net1(state, action)
-        current_q2 = self.q_net2(state, action)
-        q1_loss = F.mse_loss(current_q1, target_value)
-        q2_loss = F.mse_loss(current_q2, target_value)
+        alpha = self.log_alpha.exp()
 
+        mask = 1 - done
+        # q function loss
+        print("Qloss")
+        q_1_pred = self.q_net1(state, action)
+        q_2_pred = self.q_net2(state, action)
+        v_target = self.vf_target(next_state)
+        q_target = reward + self.gamma * v_target * mask
+        qf_1_loss = F.mse_loss(q_1_pred, q_target.detach())
+        qf_2_loss = F.mse_loss(q_2_pred, q_target.detach())
+
+        # v function loss
+        print("Vloss")
+        v_pred = self.vf(state)
+        q_pred = torch.min(self.q_net1(state, new_action), self.q_net2(state, new_action))
+        v_target = q_pred - alpha * log_prob
+        vf_loss = F.mse_loss(v_pred, v_target.detach())
+
+        if self.total_steps % self.policy_update_freq == 0:
+            # actor loss
+            advantage = q_pred - v_pred.detach()
+            actor_loss = (alpha * log_prob - advantage).mean()
+
+            # Train actor
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor_optimizer.step()
+
+            # v target update
+            self._target_soft_update()
+        else:
+            actor_loss = torch.zeros(1)
+
+        # Train Q-functions
         self.q1_optimizer.zero_grad()
-        q1_loss.backward()
+        qf_1_loss.backward()
         self.q1_optimizer.step()
 
         self.q2_optimizer.zero_grad()
-        q2_loss.backward()
+        qf_2_loss.backward()
         self.q2_optimizer.step()
 
-        # Update Policy network
-        new_action, log_prob = self.policy_net.sample(state)
-        q1_new = self.q_net1(state, new_action)
-        q2_new = self.q_net2(state, new_action)
-        q_new = torch.min(q1_new, q2_new)
+        #qf_loss = qf_1_loss + qf_2_loss
 
-        policy_loss = (self.alpha * log_prob - q_new).mean()
+        # train V function
+        self.vf_optimizer.zero_grad()
+        vf_loss.backward()
+        self.vf_optimizer.step()
 
-        self.policy_optimizer.zero_grad()
-        policy_loss.backward()
-        self.policy_optimizer.step()
+    def _target_soft_update(self):
+        tau = self.tau
+        print("V soft update")
+        for t_param, l_param in zip(self.vf_target.parameters(), self.vf.parameters()):
+            t_param.data.copy_(tau * l_param.data + (1.0 - tau) * t_param.data)
 
-        # Soft Updates
-        for target_param, param in zip(self.target_q_net1.parameters(), self.q_net1.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-
-        for target_param, param in zip(self.target_q_net2.parameters(), self.q_net2.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-
-    def train(self, total_steps):
+    def train(self, max_steps):
         state, _ = self.env.reset()
         total_reward = 0
-        step = 1
-
-        while step < total_steps:
+        while self.total_steps < max_steps:
             action = self.select_action(state)
             next_state, reward, done, truncated, _ = self.env.step(action)
             total_reward += reward
+            done = done or truncated
 
             self.replay_buffer.push(state, action, reward, next_state, done)
 
             state = next_state
-            if done or truncated:
+            if done:
                 state, _ = self.env.reset()
                 total_reward = 0
-
             self.update()
-            step += 1
+            self.total_steps += 1
 
-            if step % 1000 == 0:
-                self.inspection(step)
-
-        print(f"Training completed for {total_steps} steps.")
+            if self.total_steps % 1000 == 0:
+                self.inspection(self.total_steps)
 
     def inspection(self, iteration):
         print(f"tryinstpection...{self.env.unwrapped.spec.id}")
@@ -206,17 +322,17 @@ class SACAgent:
 
     def save_model(self, path):
         torch.save({
-            'policy_net': self.policy_net.state_dict(),
+            'actor': self.actor.state_dict(),
             'q_net1': self.q_net1.state_dict(),
             'q_net2': self.q_net2.state_dict(),
-            'target_q_net1': self.target_q_net1.state_dict(),
-            'target_q_net2': self.target_q_net2.state_dict(),
+            'vf': self.vf.state_dict(),
+            'vf_target': self.vf_target.state_dict(),
         }, path)
 
     def load_model(self, path):
         checkpoint = torch.load(path)
-        self.policy_net.load_state_dict(checkpoint['policy_net'])
+        self.actor.load_state_dict(checkpoint['actor'])
         self.q_net1.load_state_dict(checkpoint['q_net1'])
         self.q_net2.load_state_dict(checkpoint['q_net2'])
-        self.target_q_net1.load_state_dict(checkpoint['target_q_net1'])
-        self.target_q_net2.load_state_dict(checkpoint['target_q_net2'])
+        self.vf.load_state_dict(checkpoint['vf'])
+        self.vf_target.load_state_dict(checkpoint['vf_target'])

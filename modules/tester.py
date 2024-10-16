@@ -26,7 +26,9 @@ def test_agent_gui(config):
         policy_net = PolicyNetwork(env.observation_space.shape[0], env.action_space.shape[0],
                                    action_space=env.action_space)
         checkpoint = torch.load(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
-        policy_net.load_state_dict(checkpoint['policy_net'])
+
+        policy_net.load_state_dict(checkpoint['actor'])
+
         policy_net.eval()
         return test_sac_agent(policy_net, env_name)
 
@@ -67,14 +69,14 @@ def test_sac_agent(policy_net, env_name):
         while not done:
             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
             with torch.no_grad():
-                mean, _ = policy_net(state_tensor)
-                action = torch.tanh(mean) * env.action_space.high[0]
-                action = action.cpu().numpy()[0]
+                _, mu, _ = policy_net(state_tensor)
+                action = mu.detach().cpu().numpy()[0]
+
             next_state, reward, done, truncated, _ = env.step(action)
             total_reward += reward
             state = next_state
             done = done or truncated
-            env.render()
+
         avg += total_reward
         print(f"Total Reward: {total_reward}")
     return avg / 3
