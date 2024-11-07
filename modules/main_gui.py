@@ -10,6 +10,13 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from trainer import train_agent_gui
 from tester import test_agent_gui
 from visualizer import record_agent
+
+'''
+TODO: 
+2d 환경에 호환되도록 가공하는 모듈 만들기
+sac 에이전트 warmup step 구현하기
+dpg 개량하기
+'''
 discrete_envs = [
     'CartPole-v1',
     'MountainCar-v0',
@@ -59,7 +66,9 @@ class RLApp(ctk.CTk):
                 },
                 "sac": {
                     "total_steps": 100000,
-                    "learning_rate": 3e-4
+                    "policy_lr": 3e-4,
+                    "q_lr": 3e-4,
+                    "warmup_steps": 5000
                 },
                 "dpg": {
                     "total_steps": 100000,

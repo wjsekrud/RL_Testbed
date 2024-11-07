@@ -160,13 +160,14 @@ class ReplayBuffer:
 
 class SACAgent:
     def __init__(self, app, env, device='cpu', gamma=0.99, tau=0.005,
-                 policy_lr=3e-4, q_lr=3e-4, buffer_capacity=1000000, batch_size=256):
+                 policy_lr=3e-4, q_lr=3e-4, warmup_steps = 5000, buffer_capacity=1000000, batch_size=256):
         self.app = app
         self.env = env
         self.is2d = (self.env.unwrapped.spec.id == 'CarRacing-v2')  
         self.device = device
         self.gamma = gamma
         self.tau = tau
+        self.warmup_steps = warmup_steps
 
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]
@@ -223,7 +224,6 @@ class SACAgent:
         return action
 
     def update(self):
-        print("update")
         if len(self.replay_buffer) < self.batch_size:
             return
         
@@ -308,10 +308,13 @@ class SACAgent:
             if done:
                 state, _ = self.env.reset()
                 total_reward = 0
-            self.update()
+
+            if self.total_steps > self.warmup_steps:
+                self.update()
+
             self.total_steps += 1
 
-            if self.total_steps % 1000 == 0:
+            if self.total_steps % 5000 == 0:
                 self.inspection(self.total_steps)
 
     def inspection(self, iteration):

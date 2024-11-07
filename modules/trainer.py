@@ -37,8 +37,10 @@ def train_agent_gui(config, app):
 
     elif algorithm == 'sac':
         total_steps = hyperparams.get("total_steps", 100000)
-        learning_rate = hyperparams.get("learning_rate", 3e-4)
-        train_sac_agent(app, env_name, total_steps, learning_rate)
+        q_lr = hyperparams.get("q_lr", 3e-4)
+        policy_lr = hyperparams.get("policy_lr", 3e-4)
+        warmup_steps = hyperparams.get("warmup_steps", 5000)
+        train_sac_agent(app, env_name, total_steps, q_lr, policy_lr, warmup_steps)
 
     elif algorithm == 'dpg':
         total_steps = hyperparams.get("total_steps", 100000)
@@ -51,10 +53,10 @@ def train_a3c_agent(app, global_model, optimizer, env_name, max_steps):
     agent = A3CAgent(app, env, global_model, optimizer)
     agent.train(total_steps=max_steps)
 
-def train_sac_agent(app, env_name, total_steps, learning_rate):
+def train_sac_agent(app, env_name, total_steps, q_lr, policy_lr, warmup_steps):
     env = gym.make(env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    agent = SACAgent(app, env, device=device, policy_lr=learning_rate, q_lr=learning_rate)
+    agent = SACAgent(app, env, device=device, q_lr=q_lr, policy_lr=policy_lr, warmup_steps=warmup_steps)
     agent.train(max_steps=total_steps)
     agent.save_model(os.getcwd() + f'\\agents\checkpoints\\{env_name}_sac_model.pth')
 
