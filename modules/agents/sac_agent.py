@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+import ReplayBuffer
 from torch.distributions import Normal
 
 class SoftQNetwork(nn.Module):
@@ -25,7 +26,7 @@ class SoftQNetwork(nn.Module):
         self.q_value = nn.Linear(hidden_dim, 1)
 
     def forward(self, state, action):
-        print("QForward")
+        #print("QForward")
 
         try:
             x = torch.cat((state, action), dim=-1)
@@ -64,7 +65,7 @@ class SoftVNetwork(nn.Module):
         self.out = nn.Linear(hidden_dim, 1)
 
     def forward(self, state):
-        print("VForward")
+        #print("VForward")
         try:
             x = F.relu(self.fc1(state))
             x = F.relu(self.fc2(x))
@@ -104,7 +105,7 @@ class PolicyNetwork(nn.Module):
         self.log_std_max = 2
 
     def forward(self, state):
-        print("A forward.")
+        #print("A forward.")
         try:
             x = F.relu(self.fc1(state))
             x = F.relu(self.fc2(x))
@@ -129,34 +130,6 @@ class PolicyNetwork(nn.Module):
         log_prob = dist.log_prob(z) - torch.log(1 - action.pow(2) + 1e-7)
         log_prob = log_prob.sum(-1, keepdim=True)
         return action, mu, log_prob
-
-class ReplayBuffer:
-    def __init__(self, capacity, device='cpu'):
-        self.capacity = capacity
-        self.buffer = []
-        self.position = 0
-        self.device = device
-
-    def push(self, state, action, reward, next_state, done):
-        if len(self.buffer) < self.capacity:
-            self.buffer.append(None)
-        self.buffer[self.position] = (state, action, reward, next_state, done)
-        self.position = (self.position + 1) % self.capacity
-
-    def sample(self, batch_size):
-        batch = np.random.choice(len(self.buffer), batch_size, replace=False)
-        state, action, reward, next_state, done = zip(*[self.buffer[idx] for idx in batch])
-
-        state = torch.tensor(np.array(state), dtype=torch.float32).to(self.device)
-        action = torch.tensor(np.array(action), dtype=torch.float32).to(self.device)
-        reward = torch.tensor(reward, dtype=torch.float32).unsqueeze(1).to(self.device)
-        next_state = torch.tensor(np.array(next_state), dtype=torch.float32).to(self.device)
-        done = torch.tensor(done, dtype=torch.float32).unsqueeze(1).to(self.device)
-
-        return state, action, reward, next_state, done
-
-    def __len__(self):
-        return len(self.buffer)
 
 class SACAgent:
     def __init__(self, app, env, device='cpu', gamma=0.99, tau=0.005,
@@ -241,7 +214,7 @@ class SACAgent:
 
         mask = 1 - done
         # q function loss
-        print("Qloss")
+        #Qprint("Qloss")
         q_1_pred = self.q_net1(state, action)
         q_2_pred = self.q_net2(state, action)
         v_target = self.vf_target(next_state)
@@ -250,7 +223,7 @@ class SACAgent:
         qf_2_loss = F.mse_loss(q_2_pred, q_target.detach())
 
         # v function loss
-        print("Vloss")
+        #print("Vloss")
         v_pred = self.vf(state)
         q_pred = torch.min(self.q_net1(state, new_action), self.q_net2(state, new_action))
         v_target = q_pred - alpha * log_prob
@@ -289,7 +262,7 @@ class SACAgent:
 
     def _target_soft_update(self):
         tau = self.tau
-        print("V soft update")
+        #print("V soft update")
         for t_param, l_param in zip(self.vf_target.parameters(), self.vf.parameters()):
             t_param.data.copy_(tau * l_param.data + (1.0 - tau) * t_param.data)
 
